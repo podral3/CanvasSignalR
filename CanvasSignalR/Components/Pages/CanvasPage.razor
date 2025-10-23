@@ -1,0 +1,34 @@
+﻿@page "/canvas/{CanvasName}"
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.SignalR.Client
+
+<h3>CanvasPage</h3>
+<h1>This is the Canvas Page for @CanvasName</h1>
+<button @onclick="Leave">Leave</button>
+@code {
+    [Parameter]
+    public string CanvasName { get; set; }
+    private HubConnection hubConnection;
+
+    private bool hasJoined = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !hasJoined)
+        {
+            hubConnection = new HubConnectionBuilder()
+                .WithUrl(Navigation.ToAbsoluteUri("/canvasHub"))
+                .Build();
+            await hubConnection.StartAsync();
+            await hubConnection.InvokeAsync("JoinCanvas", CanvasName);
+            hasJoined = true;
+        }
+    }
+
+    public async Task Leave()
+    {
+        await hubConnection.InvokeAsync("LeaveCanvas", CanvasName);
+        Navigation.NavigateTo("/");
+    }
+}

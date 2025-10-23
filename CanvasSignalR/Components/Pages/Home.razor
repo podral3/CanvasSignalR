@@ -1,0 +1,68 @@
+﻿@page "/"
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.SignalR.Client
+
+
+<PageTitle>Home</PageTitle>
+<h1>Canvas App</h1>
+
+<button @onclick="ShowPopup">Create canvas</button>
+
+<h2>Avilable Canvases</h2>
+
+<ul id="canvasList">
+	@foreach (var canvas in canvasNames)
+	{
+		<li>@canvas <button @onclick="() => JoinCanvas(canvas)">Join</button></li>
+	}
+</ul>
+
+@if (showPopup)
+{
+	<InputPopup OnClose="HidePopup"/>
+}
+
+@code {
+	private HubConnection hubConnection;
+	private List<string> canvasNames = [];
+
+	private bool showPopup = false;
+	private void ShowPopup() 
+	{
+		showPopup = true;
+		StateHasChanged();
+	}
+	private void HidePopup()
+	{
+		showPopup = false;
+		StateHasChanged();
+	}
+
+
+	protected override async Task OnInitializedAsync()
+	{
+		hubConnection = new HubConnectionBuilder()
+			.WithUrl(Navigation.ToAbsoluteUri("/canvasHub"))
+			.Build();
+
+		hubConnection.On<List<string>>("GetCanvases", (canvasList) =>
+		{
+			canvasNames = canvasList;
+			StateHasChanged();
+		});
+
+		await hubConnection.StartAsync();
+
+		canvasNames = await hubConnection.InvokeAsync<List<string>>("GetCanvases");
+		StateHasChanged();
+	}
+	 
+	private async Task JoinCanvas(string canvasName)
+	{
+		if (hubConnection is null) return;
+		await hubConnection.InvokeAsync("JoinCanvas", canvasName);
+	}
+
+
+}
