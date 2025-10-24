@@ -8,13 +8,43 @@
 <h1>This is the Canvas Page for @CanvasName</h1>
 <button @onclick="Leave">Leave</button>
 
-<canvas @ref="canvasRef" 
+<div style="display: flex; gap: 20px;">
+    <div>
+        <canvas @ref="canvasRef" 
     width="800"
     height="600"
     @onmousedown="StartDrawing"
     @onmouseup="StopDrawing"
     @onmousemove="OnMouseMove"
     style="border: 1px solid black; cursor: crosshair"></canvas>
+    </div>
+
+    <div style="width: 300px; display: flex; flex-direction: column;">
+        <h4>Chat</h4>
+        <div @ref="chatContainerRef" style="flex: 1; border: 1px solid #ccc; padding: 10px; height: 500px; overflow-y: auto; background-color: #f9f9f9; margin-bottom: 10px;">
+            @foreach (var msg in chatMessages)
+            {
+                <div style="margin-bottom: 8px; padding: 5px; background-color: white; border-radius: 4px;">
+                    <strong style="color: #0066cc;">@msg.User:</strong>
+                    <span>@msg.Message</span>
+                    <div style="font-size: 0.8em; color: #666;">@msg.Timestamp.ToString("HH:mm:ss")</div>
+                </div>
+            }
+        </div>
+        <div style="display: flex; gap: 5px;">
+            <input @bind="messageInput" 
+       @bind:event="oninput"
+    @onkeypress="HandleKeyPress"
+          placeholder="Type a message..." 
+           style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" />
+     <button @onclick="SendMessage" 
+       disabled="@string.IsNullOrWhiteSpace(messageInput)"
+           style="padding: 8px 16px; background-color: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer;">
+     Send
+       </button>
+        </div>
+    </div>
+</div>
 
 @code {
     [Parameter]
@@ -23,6 +53,10 @@
 
     private bool hasJoined = false;
 
+    // Chat-related fields
+    private List<ChatMessage> chatMessages = new();
+    private string messageInput = string.Empty;
+    private ElementReference chatContainerRef;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -40,6 +74,20 @@
                 await DrawLine(x1, y1, x2, y2, color, penSize);
             });
 
+            hubConnection.On<string, string>("ReceiveMessage", async (userId, message) =>
+            {
+                await InvokeAsync(() =>
+                {
+                    chatMessages.Add(new ChatMessage
+                    {
+                        User = $"User-{userId.Substring(0, 8)}",
+                        Message = message,
+                        Timestamp = DateTime.Now
+                    });
+                    StateHasChanged();
+                });
+            });
+
             List<LineCommand> loadedCanvas = await hubConnection.InvokeAsync<List<LineCommand>>("GetCanvasCommands", CanvasName);
             foreach (var command in loadedCanvas)
             {
@@ -52,6 +100,34 @@
     {
         await hubConnection.InvokeAsync("LeaveCanvas", CanvasName);
         Navigation.NavigateTo("/");
+    }
+
+    private async Task SendMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(messageInput) && hubConnection is not null)
+        {
+            // Add own message to the chat
+            chatMessages.Add(new ChatMessage
+            {
+                User = "You",
+                Message = messageInput,
+                Timestamp = DateTime.Now
+            });
+
+            // Send to others via SignalR
+            await hubConnection.InvokeAsync("SendMessage", CanvasName, messageInput);
+     
+            messageInput = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SendMessage();
+        }
     }
 
     @inject IJSRuntime JS
@@ -89,5 +165,12 @@
     {
         await JS.InvokeVoidAsync("drawLine", canvasRef, x1, y1, x2, y2, color, penSize);
         await hubConnection.InvokeAsync("SendLine", CanvasName, x1, y1, x2, y2, color , penSize);
+    }
+
+    private class ChatMessage
+    {
+        public string User { get; set; }
+        public string Message { get; set; }
+        public DateTime Timestamp { get; set; }
     }
 }

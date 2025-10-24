@@ -43,5 +43,10 @@ namespace CanvasSignalR.Hubs
             return await Task.FromResult(_canvasService.GetLineCommandsForCanvas(canvasName));
         }
 
+        public async Task SendMessage(string canvasName, string message)
+        {
+            await Clients.OthersInGroup(canvasName).SendAsync("ReceiveMessage", Context.ConnectionId, message);
+        }
+
     }
 }
