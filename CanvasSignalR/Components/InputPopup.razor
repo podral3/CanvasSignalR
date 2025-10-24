@@ -1,27 +1,62 @@
 ﻿@inject NavigationManager Navigation
 
-<div class="popup-background" 
-style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;">
-    <div class="popup-content" style="background:white;padding:20px;border-radius:8px;min-width:300px;">
-        <h3>Enter canvas name</h3>
-        <input @bind="UserInput" placeholder="Enter name" style="width:100%;padding:8px;" />
-        <button @onclick="Close">Close</button>
-        <button @onclick="Create">Create</button>
+<div class="popup-overlay" @onclick="Close">
+    <div class="popup-modal" @onclick:stopPropagation="true">
+        <div class="popup-header">
+     <h3>✨ Create New Canvas</h3>
+   <button class="close-btn" @onclick="Close" aria-label="Close">✕</button>
+        </div>
+     
+        <div class="popup-body">
+ <label for="canvasName">Canvas Name</label>
+            <input id="canvasName" 
+       @bind="UserInput" 
+    @bind:event="oninput"
+ @onkeypress="HandleKeyPress"
+  placeholder="Enter a unique name..." 
+    type="text"
+     autofocus />
+      <p class="input-hint">Choose a memorable name for your collaborative canvas</p>
+ </div>
+    
+     <div class="popup-footer">
+ <button @onclick="Close" class="secondary">Cancel</button>
+        <button @onclick="Create" 
+  disabled="@string.IsNullOrWhiteSpace(UserInput)"
+ class="primary">
+         Create Canvas
+      </button>
+    </div>
     </div>
 </div>
 
 @code {
-    [Parameter] public EventCallback OnClose { get; set; }
+ [Parameter] public EventCallback OnClose { get; set; }
     public string UserInput { get; set; } = string.Empty;
 
     private async Task Close()
     {
-        await OnClose.InvokeAsync(null);
+await OnClose.InvokeAsync(null);
     }
 
     private async Task Create()
+ {
+        if (!string.IsNullOrWhiteSpace(UserInput))
+ {
+    await OnClose.InvokeAsync(null);
+   Navigation.NavigateTo($"/canvas/{UserInput}");
+        }
+    }
+
+private async Task HandleKeyPress(KeyboardEventArgs e)
     {
-        await OnClose.InvokeAsync(null);
-        Navigation.NavigateTo($"/canvas/{UserInput}");
+     if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(UserInput))
+        {
+       await Create();
+        }
+  else if (e.Key == "Escape")
+        {
+         await Close();
+      }
     }
 }

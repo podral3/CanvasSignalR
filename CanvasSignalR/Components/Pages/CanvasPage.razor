@@ -4,44 +4,70 @@
 @using CanvasSignalR.Models
 @using Microsoft.AspNetCore.SignalR.Client
 
-<h3>CanvasPage</h3>
-<h1>This is the Canvas Page for @CanvasName</h1>
-<button @onclick="Leave">Leave</button>
+<PageTitle>Canvas: @CanvasName</PageTitle>
 
-<div style="display: flex; gap: 20px;">
-    <div>
-        <canvas @ref="canvasRef" 
-    width="800"
-    height="600"
-    @onmousedown="StartDrawing"
-    @onmouseup="StopDrawing"
-    @onmousemove="OnMouseMove"
-    style="border: 1px solid black; cursor: crosshair"></canvas>
+<div class="canvas-page">
+    <div class="page-header">
+        <div class="header-content">
+        <h1>🎨 @CanvasName</h1>
+ <p class="canvas-subtitle">Collaborative Drawing Canvas</p>
+        </div>
+        <button @onclick="Leave" class="leave-btn">← Leave Canvas</button>
     </div>
 
-    <div style="width: 300px; display: flex; flex-direction: column;">
-        <h4>Chat</h4>
-        <div @ref="chatContainerRef" style="flex: 1; border: 1px solid #ccc; padding: 10px; height: 500px; overflow-y: auto; background-color: #f9f9f9; margin-bottom: 10px;">
-            @foreach (var msg in chatMessages)
-            {
-                <div style="margin-bottom: 8px; padding: 5px; background-color: white; border-radius: 4px;">
-                    <strong style="color: #0066cc;">@msg.User:</strong>
-                    <span>@msg.Message</span>
-                    <div style="font-size: 0.8em; color: #666;">@msg.Timestamp.ToString("HH:mm:ss")</div>
-                </div>
-            }
-        </div>
-        <div style="display: flex; gap: 5px;">
-            <input @bind="messageInput" 
-       @bind:event="oninput"
-    @onkeypress="HandleKeyPress"
-          placeholder="Type a message..." 
-           style="flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" />
-     <button @onclick="SendMessage" 
-       disabled="@string.IsNullOrWhiteSpace(messageInput)"
-           style="padding: 8px 16px; background-color: #0066cc; color: white; border: none; border-radius: 4px; cursor: pointer;">
-     Send
+    <div class="canvas-container">
+        <div class="canvas-wrapper">
+       <canvas @ref="canvasRef" 
+     width="800"
+          height="600"
+  @onmousedown="StartDrawing"
+  @onmouseup="StopDrawing"
+     @onmousemove="OnMouseMove"
+@onmouseleave="StopDrawing"
+    class="drawing-canvas"></canvas>
+ </div>
+
+        <div class="chat-panel">
+            <div class="chat-header">
+       <h4>💬 Chat</h4>
+     <span class="chat-badge">Live</span>
+     </div>
+          
+            <div @ref="chatContainerRef" class="chat-messages">
+     @if (chatMessages.Count == 0)
+       {
+   <div class="empty-chat">
+          <p>👋 No messages yet</p>
+         <p class="empty-subtitle">Start a conversation!</p>
+            </div>
+  }
+           else
+{
+   @foreach (var msg in chatMessages)
+                {
+    <div class="chat-message @(msg.User == "You" ? "own-message" : "")">
+      <div class="message-header">
+      <strong class="message-user">@msg.User</strong>
+        <span class="message-time">@msg.Timestamp.ToString("HH:mm:ss")</span>
+     </div>
+<div class="message-content">@msg.Message</div>
+    </div>
+             }
+    }
+         </div>
+     
+            <div class="chat-input-container">
+       <input @bind="messageInput" 
+      @bind:event="oninput"
+      @onkeypress="HandleKeyPress"
+ placeholder="Type a message..." 
+          class="chat-input" />
+      <button @onclick="SendMessage" 
+   disabled="@string.IsNullOrWhiteSpace(messageInput)"
+         class="send-btn">
+               Send →
        </button>
+            </div>
         </div>
     </div>
 </div>
@@ -63,71 +89,71 @@
         if (firstRender && !hasJoined)
         {
             hubConnection = new HubConnectionBuilder()
-                .WithUrl(Navigation.ToAbsoluteUri("/canvasHub"))
-                .Build();
-            await hubConnection.StartAsync();
-            await hubConnection.InvokeAsync("JoinCanvas", CanvasName);
-            hasJoined = true;
+     .WithUrl(Navigation.ToAbsoluteUri("/canvasHub"))
+     .Build();
+       await hubConnection.StartAsync();
+         await hubConnection.InvokeAsync("JoinCanvas", CanvasName);
+        hasJoined = true;
 
-            hubConnection.On<int, int, int, int, string, int>("ReceiveCanvasUpdate", async (x1, y1, x2, y2, color, penSize) =>
-            {
-                await DrawLine(x1, y1, x2, y2, color, penSize);
-            });
+          hubConnection.On<int, int, int, int, string, int>("ReceiveCanvasUpdate", async (x1, y1, x2, y2, color, penSize) =>
+         {
+     await DrawLine(x1, y1, x2, y2, color, penSize);
+   });
 
             hubConnection.On<string, string>("ReceiveMessage", async (userId, message) =>
-            {
-                await InvokeAsync(() =>
-                {
-                    chatMessages.Add(new ChatMessage
-                    {
-                        User = $"User-{userId.Substring(0, 8)}",
-                        Message = message,
-                        Timestamp = DateTime.Now
-                    });
-                    StateHasChanged();
+{
+        await InvokeAsync(() =>
+        {
+           chatMessages.Add(new ChatMessage
+   {
+         User = $"User-{userId.Substring(0, 8)}",
+     Message = message,
+  Timestamp = DateTime.Now
+      });
+   StateHasChanged();
                 });
-            });
+  });
 
-            List<LineCommand> loadedCanvas = await hubConnection.InvokeAsync<List<LineCommand>>("GetCanvasCommands", CanvasName);
+    List<LineCommand> loadedCanvas = await hubConnection.InvokeAsync<List<LineCommand>>("GetCanvasCommands", CanvasName);
             foreach (var command in loadedCanvas)
-            {
-                await DrawLine(command.X1, command.Y1, command.X2, command.Y2, command.Color, command.PenSize);
-            }
-        }
+    {
+            await DrawLine(command.X1, command.Y1, command.X2, command.Y2, command.Color, command.PenSize);
+  }
+   }
     }
 
     public async Task Leave()
     {
         await hubConnection.InvokeAsync("LeaveCanvas", CanvasName);
-        Navigation.NavigateTo("/");
+     Navigation.NavigateTo("/");
     }
 
     private async Task SendMessage()
-    {
+  {
         if (!string.IsNullOrWhiteSpace(messageInput) && hubConnection is not null)
         {
-            // Add own message to the chat
-            chatMessages.Add(new ChatMessage
-            {
-                User = "You",
-                Message = messageInput,
-                Timestamp = DateTime.Now
-            });
+          // Add own message to the chat
+   chatMessages.Add(new ChatMessage
+       {
+   User = "You",
+ Message = messageInput,
+          Timestamp = DateTime.Now
+       });
 
             // Send to others via SignalR
             await hubConnection.InvokeAsync("SendMessage", CanvasName, messageInput);
      
             messageInput = string.Empty;
-            StateHasChanged();
+       StateHasChanged();
         }
     }
 
     private async Task HandleKeyPress(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter")
+if (e.Key == "Enter")
         {
-            await SendMessage();
-        }
+ await SendMessage();
+   }
     }
 
     @inject IJSRuntime JS
@@ -138,8 +164,8 @@
 
     private async Task StartDrawing(MouseEventArgs e)
     {
-        isDrawing = true;
-        lastX = (int)e.OffsetX;
+     isDrawing = true;
+lastX = (int)e.OffsetX;
         lastY = (int)e.OffsetY;
     }
 
@@ -152,13 +178,13 @@
     {
         if (!isDrawing) return;
 
-        int currentX = (int)e.OffsetX;
+ int currentX = (int)e.OffsetX;
         int currentY = (int)e.OffsetY;
 
-        await DrawLine(lastX, lastY, currentX, currentY, "#000000", 10);
+  await DrawLine(lastX, lastY, currentX, currentY, "#000000", 10);
 
         lastX = currentX;
-        lastY = currentY;
+   lastY = currentY;
     }
 
     private async Task DrawLine(int x1, int y1, int x2, int y2, string color, int penSize)
@@ -170,7 +196,7 @@
     private class ChatMessage
     {
         public string User { get; set; }
-        public string Message { get; set; }
-        public DateTime Timestamp { get; set; }
+    public string Message { get; set; }
+ public DateTime Timestamp { get; set; }
     }
 }
