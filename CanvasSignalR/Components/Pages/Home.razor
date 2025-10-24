@@ -58,10 +58,9 @@
 		StateHasChanged();
 	}
 	 
-	private async Task JoinCanvas(string canvasName)
+	private void JoinCanvas(string canvasName)
 	{
-		if (hubConnection is null) return;
-		await hubConnection.InvokeAsync("JoinCanvas", canvasName);
+        Navigation.NavigateTo($"/canvas/{canvasName}");
 	}
 
 

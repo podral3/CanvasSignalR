@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using CanvasSignalR.Models;
+using System.Collections.Concurrent;
 
 namespace CanvasSignalR.Services
 {
@@ -6,6 +7,7 @@ namespace CanvasSignalR.Services
     {
         private readonly ConcurrentDictionary<string, HashSet<string>> _canvasUsers = new();
         private readonly ConcurrentDictionary<string, string> _userByCanvas = new();
+        private readonly ConcurrentDictionary<string, List<LineCommand>> _canvasByLineCommands = new();
 
         public void AddUserToCanvas(string canvasName, string connectionId) 
         {
@@ -31,5 +33,23 @@ namespace CanvasSignalR.Services
             _userByCanvas.TryRemove(connectionId, out _);
         }
         public List<string> GetCanvases() => [.. _canvasUsers.Keys];
+
+        public void AddLineCommandToCanvas(string canvasName, LineCommand lineCommand)
+        {
+            _canvasByLineCommands.AddOrUpdate(
+                canvasName,
+                [lineCommand],
+                (key, existing) => { existing.Add(lineCommand); return existing; }
+            );
+        }
+
+        public List<LineCommand> GetLineCommandsForCanvas(string canvasName)
+        {
+            if (_canvasByLineCommands.TryGetValue(canvasName, out var lineCommands))
+            {
+                return lineCommands;
+            }
+            return [];
+        }
     }
 }

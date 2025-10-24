@@ -1,17 +1,28 @@
 ﻿@page "/canvas/{CanvasName}"
 @inject NavigationManager Navigation
 @rendermode InteractiveServer
+@using CanvasSignalR.Models
 @using Microsoft.AspNetCore.SignalR.Client
 
 <h3>CanvasPage</h3>
 <h1>This is the Canvas Page for @CanvasName</h1>
 <button @onclick="Leave">Leave</button>
+
+<canvas @ref="canvasRef" 
+    width="800"
+    height="600"
+    @onmousedown="StartDrawing"
+    @onmouseup="StopDrawing"
+    @onmousemove="OnMouseMove"
+    style="border: 1px solid black; cursor: crosshair"></canvas>
+
 @code {
     [Parameter]
     public string CanvasName { get; set; }
     private HubConnection hubConnection;
 
     private bool hasJoined = false;
+
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -23,6 +34,17 @@
             await hubConnection.StartAsync();
             await hubConnection.InvokeAsync("JoinCanvas", CanvasName);
             hasJoined = true;
+
+            hubConnection.On<int, int, int, int, string, int>("ReceiveCanvasUpdate", async (x1, y1, x2, y2, color, penSize) =>
+            {
+                await DrawLine(x1, y1, x2, y2, color, penSize);
+            });
+
+            List<LineCommand> loadedCanvas = await hubConnection.InvokeAsync<List<LineCommand>>("GetCanvasCommands", CanvasName);
+            foreach (var command in loadedCanvas)
+            {
+                await DrawLine(command.X1, command.Y1, command.X2, command.Y2, command.Color, command.PenSize);
+            }
         }
     }
 
@@ -30,5 +52,42 @@
     {
         await hubConnection.InvokeAsync("LeaveCanvas", CanvasName);
         Navigation.NavigateTo("/");
+    }
+
+    @inject IJSRuntime JS
+    private ElementReference canvasRef;
+
+    private bool isDrawing = false;
+    private int lastX, lastY;
+
+    private async Task StartDrawing(MouseEventArgs e)
+    {
+        isDrawing = true;
+        lastX = (int)e.OffsetX;
+        lastY = (int)e.OffsetY;
+    }
+
+    private async Task StopDrawing()
+    {
+        isDrawing = false;
+    }
+
+    private async Task OnMouseMove(MouseEventArgs e)
+    {
+        if (!isDrawing) return;
+
+        int currentX = (int)e.OffsetX;
+        int currentY = (int)e.OffsetY;
+
+        await DrawLine(lastX, lastY, currentX, currentY, "#000000", 10);
+
+        lastX = currentX;
+        lastY = currentY;
+    }
+
+    private async Task DrawLine(int x1, int y1, int x2, int y2, string color, int penSize)
+    {
+        await JS.InvokeVoidAsync("drawLine", canvasRef, x1, y1, x2, y2, color, penSize);
+        await hubConnection.InvokeAsync("SendLine", CanvasName, x1, y1, x2, y2, color , penSize);
     }
 }
